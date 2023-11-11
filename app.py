@@ -9,42 +9,70 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 from tkinter import Label, Frame, Event, Button, Canvas, Scrollbar
 from PIL import Image, ImageTk
 
+SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".JPG", ".JPEG"]
+
 # GUIアプリケーションクラスの定義
 class ImageCompressorApp:
     def __init__(self, root):
         self.root = root
-        root.title("Image Compressor")
+        self.setup_app()
+        self.setup_drop_area()
+        self.setup_thumbnail_area()
+        self.setup_open_directory_button()
 
+    def setup_app(self):
+        self.root.title("Image Compressor")
         if not os.path.exists("./compressed/"):
             os.mkdir("./compressed/")
             print("Created ./compressed/ directory.")
 
-        # ドラッグアンドドロップエリアの作成
-        self.drop_area = Label(root, text="ここに画像をドラッグ＆ドロップ", width=40, height=10, bg="gray")
+    def setup_drop_area(self):
+        self.drop_area = Label(self.root, text="ここに画像をドラッグ＆ドロップ", width=40, height=10, bg="gray")
         self.drop_area.pack(pady=20)
-
-        # ドラッグアンドドロップイベントのバインド
         self.drop_area.drop_target_register(DND_FILES)
         self.drop_area.dnd_bind('<<Drop>>', self.handle_drop)
 
-        # サムネイル表示用のフレーム
-        self.thumbnail_frame = Frame(root)
+    def setup_thumbnail_area(self):
+        self.thumbnail_frame = Frame(self.root)
         self.thumbnail_frame.pack(pady=10)
-
-        # サムネイル表示用のスクロールフレーム
-        self.thumbnail_frame = Canvas(root, borderwidth=0)
+        self.thumbnail_frame = Canvas(self.root, borderwidth=0)
         self.thumbnail_frame.pack(side="bottom", fill="x", expand=True)
-        
-        # スクロールバー
-        scrollbar = Scrollbar(root, orient="horizontal", command=self.thumbnail_frame.xview)
+        scrollbar = Scrollbar(self.root, orient="horizontal", command=self.thumbnail_frame.xview)
         scrollbar.pack(side="bottom", fill="x")
-
         self.thumbnail_frame.configure(xscrollcommand=scrollbar.set)
         self.thumbnail_frame.bind('<Configure>', self.on_frame_configure)
-
         self.thumbnail_container = Frame(self.thumbnail_frame)
         self.thumbnail_frame.create_window((0,0), window=self.thumbnail_container, anchor="nw")
+        self.update_thumbnail()
 
+    def setup_open_directory_button(self):
+        os_name = self.get_os_name()
+        if os_name == "Darwin":  # macOS
+            btn_text = "Finderで開く"
+            self.open_command = ["open", "./compressed/"]
+        elif os_name == "Windows":
+            btn_text = "Explorerで開く"
+            self.open_command = ["explorer", "./compressed/"]
+        else:
+            btn_text = None
+            self.open_command = None
+        self.open_directory_button = Button(self.root, text=btn_text, command=self.open_directory)
+        self.open_directory_button.pack(pady=10)
+
+    def handle_drop(self, event: Event):
+        file_paths = event.data.strip().split(" ")
+        for file_path in file_paths:
+            self.process_file(file_path)
+
+    def process_file(self, file_path:str):
+        if self.check_file_path(file_path):
+            self.compress_and_update_image(file_path)
+
+    def compress_and_update_image(self, file_path:str):
+        compressed_path, size = self.compress_image(file_path)
+        size_mb = size / 1024 / 1024
+        print(f"{os.path.basename(file_path)} has been compressed to {size_mb:.2f} MB.")
+        self.update_thumbnail()
 
         # サムネイルの更新
         self.update_thumbnail()
@@ -83,7 +111,10 @@ class ImageCompressorApp:
             widget.destroy()
 
         # 圧縮された画像のサムネイルを表示
-        compressed_images = glob('./compressed/*.jpg') + glob('./compressed/*.JPG')
+        compressed_images = []
+        for ext in SUPPORTED_EXTENSIONS:
+            compressed_images.extend(glob(f"./compressed/*{ext}"))
+        
         for img_path in compressed_images:
             thumbnail = Image.open(img_path)
             thumbnail.thumbnail((100, 100))
@@ -119,8 +150,8 @@ class ImageCompressorApp:
         
         # ファイルの拡張子を確認
         _, ext = os.path.splitext(file_path)
-        if ext.lower() not in [".jpg", ".jpeg"]:
-            print(f"{file_path} is not a JPEG file.")
+        if ext not in SUPPORTED_EXTENSIONS:
+            print(f"{file_path} is not supported file type.")
             return
 
     def compress_image(self, file_path:str):
