@@ -1,3 +1,4 @@
+from typing import Literal
 import io
 import os
 import subprocess
@@ -5,7 +6,7 @@ import platform
 
 from glob import glob
 from tkinterdnd2 import DND_FILES, TkinterDnD
-from tkinter import Label, Frame, Event, Button
+from tkinter import Label, Frame, Event, Button, Canvas, Scrollbar
 from PIL import Image, ImageTk
 
 # GUIアプリケーションクラスの定義
@@ -30,12 +31,26 @@ class ImageCompressorApp:
         self.thumbnail_frame = Frame(root)
         self.thumbnail_frame.pack(pady=10)
 
+        # サムネイル表示用のスクロールフレーム
+        self.thumbnail_frame = Canvas(root, borderwidth=0)
+        self.thumbnail_frame.pack(side="bottom", fill="x", expand=True)
+        
+        # スクロールバー
+        scrollbar = Scrollbar(root, orient="horizontal", command=self.thumbnail_frame.xview)
+        scrollbar.pack(side="bottom", fill="x")
+
+        self.thumbnail_frame.configure(xscrollcommand=scrollbar.set)
+        self.thumbnail_frame.bind('<Configure>', self.on_frame_configure)
+
+        self.thumbnail_container = Frame(self.thumbnail_frame)
+        self.thumbnail_frame.create_window((0,0), window=self.thumbnail_container, anchor="nw")
+
 
         # サムネイルの更新
         self.update_thumbnail()
 
         # OSに応じたFinder/Explorerで開くボタン
-        os_name = platform.system()
+        os_name = self.get_os_name()
         if os_name == "Darwin":  # macOS
             btn_text = "Finderで開く"
             self.open_command = ["open", "./compressed/"]
@@ -43,11 +58,14 @@ class ImageCompressorApp:
             btn_text = "Explorerで開く"
             self.open_command = ["explorer", "./compressed/"]
         else:
-            btn_text = "ディレクトリを開く"
+            btn_text = None
             self.open_command = None
         
         self.open_directory_button = Button(root, text=btn_text, command=self.open_directory)
         self.open_directory_button.pack(pady=10)
+
+    def get_os_name(self) -> Literal["Darwin", "Windows", "Linux"]:
+        return platform.system()
 
     def open_directory(self):
         if self.open_command:
@@ -56,21 +74,33 @@ class ImageCompressorApp:
             print("このOSではサポートされていません。")
 
 
+    def on_frame_configure(self, event=None):
+        self.thumbnail_frame.configure(scrollregion=self.thumbnail_frame.bbox("all"))
+
     def update_thumbnail(self):
-        # サムネイルフレーム内の既存のウィジェットを削除
-        for widget in self.thumbnail_frame.winfo_children():
+        # サムネイルコンテナ内の既存のウィジェットを削除
+        for widget in self.thumbnail_container.winfo_children():
             widget.destroy()
 
-        # 最新の5枚の画像を取得
+        # 圧縮された画像のサムネイルを表示
         compressed_images = glob('./compressed/*.jpg') + glob('./compressed/*.JPG')
-        compressed_images.sort(key=os.path.getmtime, reverse=True)
-        for img_path in compressed_images[:5]:
-            img = Image.open(img_path)
-            img.thumbnail((100, 100))
-            photo = ImageTk.PhotoImage(img)
-            label = Label(self.thumbnail_frame, image=photo)
+        for img_path in compressed_images:
+            thumbnail = Image.open(img_path)
+            thumbnail.thumbnail((100, 100))
+            photo = ImageTk.PhotoImage(thumbnail)
+
+            thumb_frame = Frame(self.thumbnail_container)
+            label = Label(thumb_frame, image=photo)
             label.image = photo  # 参照を保持
-            label.pack(side="left")
+            label.pack()
+
+            # 画像名のラベル
+            name_label = Label(thumb_frame, text=os.path.basename(img_path))
+            name_label.pack()
+
+            thumb_frame.pack(side="left", padx=10)
+        # Canvasのスクロール領域を更新
+        self.on_frame_configure()
 
     def handle_drop(self, event: Event):
         # ドロップされたファイルのパスを取得
