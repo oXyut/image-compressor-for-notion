@@ -10,6 +10,7 @@ from tkinter import Label, Frame, Event, Button, Canvas, Scrollbar
 from PIL import Image, ImageTk
 
 SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".JPG", ".JPEG"]
+LIMIT_FILESIZE_MB = 5
 
 # GUIアプリケーションクラスの定義
 class ImageCompressorApp:
@@ -160,7 +161,7 @@ class ImageCompressorApp:
         # 画像を開く
         with Image.open(file_path) as img:
             # 画像の圧縮と保存
-            target_size = 5 * 1024 * 1024 # 5MB
+            target_size = LIMIT_FILESIZE_MB * 1024 * 1024 # 5MB
             quality = 95
 
             while True:
