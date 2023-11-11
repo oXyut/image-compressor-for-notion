@@ -19,6 +19,8 @@ class ImageCompressorApp:
         self.setup_drop_area()
         self.setup_thumbnail_area()
         self.setup_open_directory_button()
+        self.thumbnail_frame.bind('<Configure>', self.on_frame_configure)
+
 
     def setup_app(self):
         self.root.title("Image Compressor")
